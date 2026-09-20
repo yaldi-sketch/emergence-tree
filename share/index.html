@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Emergence tree</title>
+<link rel="icon" href="logo.png" />
+<style>
+:root {
+  --bg: #1b1b1d; --elev: #2a2a2e; --ink: #e8e8ea;
+  --muted: #9a9aa0; --faint: #6e6e74; --line: #3a3a40; --focus: #b0b0b8;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100vh; }
+body {
+  display: flex; align-items: center; justify-content: center;
+  padding: 36px 24px;
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.5 ui-sans-serif, system-ui, sans-serif;
+}
+.logo {
+  position: fixed; inset: 0; z-index: 0;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.logo::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 36%, rgba(27, 27, 29, 0.42) 12%, var(--bg) 72%);
+}
+.logo img {
+  max-width: min(94vw, 980px);
+  max-height: min(92vh, 920px);
+  width: auto; height: auto; object-fit: contain;
+  opacity: 0.38;
+  transform: translateY(-8vh);
+  -webkit-mask-image: radial-gradient(circle at 50% 36%, #000 28%, transparent 70%);
+  mask-image: radial-gradient(circle at 50% 36%, #000 28%, transparent 70%);
+}
+.sheet {
+  position: relative; z-index: 1;
+  width: min(36em, 100%);
+  padding: 28px 26px 24px;
+  margin-top: 16vh;
+  background: rgba(27, 27, 29, 0.62);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+h1 { font-size: 22px; font-weight: 590; margin: 0 0 16px; }
+.sheet ul { margin: 0 0 14px; padding: 0 0 0 1.15em; }
+.sheet li { margin: 0 0 8px; }
+.sheet li:last-child { margin-bottom: 0; }
+.facts { color: var(--ink); }
+.note { color: var(--muted); }
+.pin {
+  color: var(--faint); font-size: 12px; margin: 18px 0 22px;
+  font-variant-numeric: tabular-nums;
+}
+.open {
+  display: inline-block;
+  background: var(--elev); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 4px;
+  padding: 8px 14px; text-decoration: none; font-size: 14px;
+}
+.open:hover, .open:focus-visible { border-color: var(--focus); outline: none; }
+@media (max-width: 720px) {
+  .logo img { max-height: 70vh; }
+}
+</style>
+</head>
+<body>
+  <div class="logo" aria-hidden="true">
+    <img src="logo.png" alt="" />
+  </div>
+  <main class="sheet">
+    <h1>Emergence tree</h1>
+    <ul class="facts">
+      <li>A map of phenomena named in the literature.</li>
+      <li>An edge is physical production, a bound, or a limit.</li>
+      <li>Some edges feed back.</li>
+    </ul>
+    <ul class="note">
+      <li>Some steps are blank; the published science has not filled them.</li>
+      <li>Life and Earth are here because we observe them.</li>
+    </ul>
+    <p class="pin">Pinned 2026-09-20 · 418 nodes · 1012 edges · fe358295</p>
+    <a class="open" href="emergence-tree.html">Open the map</a>
+  </main>
+</body>
+</html>
