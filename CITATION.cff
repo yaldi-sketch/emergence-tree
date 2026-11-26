@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use the emergence tree, please cite it as below, with the pin you used."
+type: dataset
+title: "Emergence tree"
+abstract: "A map of phenomena named in the literature. An edge is physical production, a bound, or a limit."
+authors:
+  - alias: yaldi-sketch
+repository-code: "https://github.com/yaldi-sketch/emergence-tree"
+url: "https://yaldi-sketch.github.io/emergence-tree/"
+license: CC-BY-4.0
+version: "2026-09-20 fe358295"
+date-released: "2026-09-20"
+keywords:
+  - emergence
+  - physics
+  - knowledge map

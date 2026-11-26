@@ -133,6 +133,12 @@ aside h2 { font-size: 16px; margin: 0 0 6px; font-weight: 590; }
 aside a { color: var(--muted); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
 aside a:hover, aside a:focus-visible { color: var(--ink); text-decoration-color: var(--focus); }
 .empty { color: var(--muted); font-size: 13px; }
+.node:focus { outline: none; }
+.node:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 .dock-close { display: none; }
 @media (max-width: 720px) {
   body { height: 100dvh; }
@@ -167,11 +173,13 @@ aside a:hover, aside a:focus-visible { color: var(--ink); text-decoration-color:
   <div class="tools">
     <input id="search" type="search" placeholder="Find a node" />
     <label class="lineage"><input type="checkbox" id="lineage" /> This lineage only</label>
+    <label class="lineage"><input type="checkbox" id="implied" /> Hide implied edges</label>
     <span class="map-zoom" role="group" aria-label="Map zoom">
       <span class="hint">Zoom</span>
-      <button type="button" id="map-zoom-out" class="nav-btn" title="Zoom out">−</button>
-      <button type="button" id="map-zoom-reset" class="nav-btn" title="Reset zoom">100%</button>
-      <button type="button" id="map-zoom-in" class="nav-btn" title="Zoom in">+</button>
+      <button type="button" id="map-zoom-out" class="nav-btn" title="Zoom out" aria-label="Zoom out">−</button>
+      <button type="button" id="map-zoom-reset" class="nav-btn" title="Reset zoom" aria-label="Reset zoom">100%</button>
+      <button type="button" id="map-zoom-in" class="nav-btn" title="Zoom in" aria-label="Zoom in">+</button>
+      <button type="button" id="map-zoom-fit" class="nav-btn" title="Fit the whole map">Fit</button>
     </span>
     <button type="button" id="key-toggle" class="nav-btn">Key</button>
     <details class="map-about">
@@ -183,7 +191,9 @@ aside a:hover, aside a:focus-visible { color: var(--ink); text-decoration-color:
           <li>A solid edge: the source physically gives rise to the target.</li>
           <li>Yellow edges do not: dotted is a claim about validity, reach or impossibility; long-dashed is the same content re-described in a limit.</li>
           <li>Orange: feedback.</li>
-          <li>Zoom with − and +, or Ctrl+scroll.</li>
+          <li>Hide implied edges drops a solid edge when a longer solid path already joins the same two nodes. The node panel still lists every edge.</li>
+          <li>Zoom with − and +, Fit, or Ctrl+scroll.</li>
+          <li>Keyboard: Tab into the map, arrow keys move along edges and through a column, Enter selects, Escape clears.</li>
           <li>Life and Earth are observations; the electronic Hamiltonian does not produce them here.</li>
           <li>Incoming edges:
             <ul>
@@ -191,6 +201,14 @@ aside a:hover, aside a:focus-visible { color: var(--ink); text-decoration-color:
               <li>A claim about</li>
               <li>A limit of</li>
               <li>Feeds back from</li>
+            </ul>
+          </li>
+          <li>Outgoing edges:
+            <ul>
+              <li>Produces</li>
+              <li>Bounds</li>
+              <li>Its limits</li>
+              <li>Feeds back into</li>
             </ul>
           </li>
         </ul>
@@ -221,14 +239,15 @@ aside a:hover, aside a:focus-visible { color: var(--ink); text-decoration-color:
   </div>
 </header>
 <main>
-  <div class="stage" id="stage">
+  <div class="stage" id="stage" role="region" aria-label="Map">
     <div id="board-zoom">
       <div class="board" id="board"></div>
     </div>
   </div>
-  <aside id="map-dock">
+  <aside id="map-dock" aria-label="Selected node">
     <div id="panel"><p class="empty">Click a node.</p></div>
   </aside>
+  <p id="sr-status" class="sr-only" aria-live="polite"></p>
 </main>
 <script>
 const TREE =
@@ -262,7 +281,10 @@ let onOpenTools = null;
 let instOn = new Map();
 let coverInst = null;
 let lineageOnly = false;
-const ZOOM_MIN = 0.45;
+let hideImplied = false;
+let nav = null;
+let announced = null;
+const ZOOM_MIN = 0.15;
 const ZOOM_MAX = 2.4;
 const ZOOM_STEP = 0.15;
 let mapZoom = 1;
@@ -525,12 +547,48 @@ function sectionCount(s) {
   return DATA.nodes.filter((x) => sectionOf(x.domain) === s).length;
 }
 
+function withoutImplied(edges) {
+  const succ = new Map();
+  const prod = edges.filter((e) => !e.rel && !e.feedback);
+  for (const e of prod) {
+    if (!succ.has(e.from)) succ.set(e.from, []);
+    succ.get(e.from).push(e.to);
+  }
+  const implied = new Set();
+  for (const e of prod) {
+    const seen = new Set();
+    const stack = (succ.get(e.from) || []).filter((x) => x !== e.to);
+    while (stack.length) {
+      const cur = stack.pop();
+      if (cur === e.to) { implied.add(e); break; }
+      if (seen.has(cur)) continue;
+      seen.add(cur);
+      for (const nxt of succ.get(cur) || []) stack.push(nxt);
+    }
+  }
+  return edges.filter((e) => !implied.has(e));
+}
+
+function nodeAria(n) {
+  const bits = [n.label];
+  if (n.imported) bits.push("from " + homeSection(n.id));
+  else if (n.sub) bits.push(n.sub);
+  if (n.kind === "root") bits.push("fundamental");
+  if (n.evidence) bits.push(n.evidence.grade === "theory" ? "theory only" : "simulation only");
+  if (n.open) bits.push("open in the field");
+  return bits.join(", ");
+}
+
 function draw() {
   syncHash();
+  const focused = document.activeElement && document.activeElement.closest
+    ? document.activeElement.closest("#board .node") : null;
+  const keepFocus = focused ? focused.dataset.id : null;
   const nodes = visibleNodes();
   const live = new Set(nodes.map((n) => n.id));
   const edges = DATA.edges.filter((e) => live.has(e.from) && live.has(e.to));
   const L = layout(nodes, edges);
+  const wires = hideImplied ? withoutImplied(edges) : edges;
 
   const up = new Map(), down = new Map();
   for (const e of edges) {
@@ -604,11 +662,12 @@ function draw() {
 
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("class", "wires");
+  svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("width", L.width);
   svg.setAttribute("height", L.height);
   const dip = L.height - 30;
 
-  for (const e of edges) {
+  for (const e of wires) {
     const a = L.pos.get(e.from), b = L.pos.get(e.to);
     if (!a || !b) continue;
     const back = b.x <= a.x || e.feedback;
@@ -654,10 +713,34 @@ function draw() {
     return [...walk(id, fullUp)].filter((a) => roots.has(a)).length;
   }
 
+  const columns = new Map();
+  for (const [id, p] of L.pos) {
+    if (!columns.has(p.x)) columns.set(p.x, []);
+    columns.get(p.x).push(id);
+  }
+  for (const ids of columns.values()) ids.sort((a, b) => L.pos.get(a).y - L.pos.get(b).y);
+  const navUp = new Map(), navDown = new Map();
+  for (const e of edges) {
+    if (e.feedback) continue;
+    if (!navUp.has(e.to)) navUp.set(e.to, []);
+    navUp.get(e.to).push(e.from);
+    if (!navDown.has(e.from)) navDown.set(e.from, []);
+    navDown.get(e.from).push(e.to);
+  }
+  nav = { pos: L.pos, columns, up: navUp, down: navDown };
+  const firstX = Math.min(...columns.keys());
+  const roving = [keepFocus, selected].find((id) => id && L.pos.has(id))
+    || (columns.get(firstX) || [])[0];
+
   for (const n of nodes) {
     const p = L.pos.get(n.id);
     if (!p) continue;
     const el = document.createElement("div");
+    el.dataset.id = n.id;
+    el.setAttribute("role", "button");
+    el.setAttribute("aria-pressed", selected === n.id ? "true" : "false");
+    el.setAttribute("aria-label", nodeAria(n));
+    el.tabIndex = n.id === roving ? 0 : -1;
     const active = !lit || lit.has(n.id);
     el.className = "node " + n.dim
       + (n.kind === "root" ? " root" : "")
@@ -685,9 +768,18 @@ function draw() {
     };
     board.appendChild(el);
   }
+  if (keepFocus) {
+    const again = board.querySelector('.node[data-id="' + CSS.escape(keepFocus) + '"]');
+    if (again) again.focus({ preventScroll: true });
+  }
 
   const panel = document.getElementById("panel");
   const n = byAll[selected];
+  const status = document.getElementById("sr-status");
+  if (status && announced !== selected) {
+    status.textContent = n ? "Selected " + n.label : "";
+    announced = selected;
+  }
   const dock = document.getElementById("map-dock");
   if (dock) dock.classList.toggle("open", !!n);
   if (!n) {
@@ -753,6 +845,58 @@ function draw() {
   });
 }
 
+function stepFrom(id, key) {
+  const here = nav && nav.pos.get(id);
+  if (!here) return null;
+  const nearest = (ids) => ids.filter((x) => nav.pos.has(x))
+    .sort((a, b) => Math.abs(nav.pos.get(a).y - here.y) - Math.abs(nav.pos.get(b).y - here.y))[0];
+  if (key === "ArrowRight") return nearest(nav.down.get(id) || []);
+  if (key === "ArrowLeft") return nearest(nav.up.get(id) || []);
+  if (key === "ArrowUp" || key === "ArrowDown") {
+    const col = nav.columns.get(here.x) || [];
+    return col[col.indexOf(id) + (key === "ArrowDown" ? 1 : -1)];
+  }
+  return null;
+}
+
+function focusNode(id) {
+  const board = document.getElementById("board");
+  const next = board.querySelector('.node[data-id="' + CSS.escape(id) + '"]');
+  if (!next) return;
+  const cur = board.querySelector('.node[tabindex="0"]');
+  if (cur) cur.tabIndex = -1;
+  next.tabIndex = 0;
+  next.focus();
+}
+
+function onBoardKey(ev) {
+  const el = ev.target.closest && ev.target.closest(".node");
+  if (!el) return;
+  const id = el.dataset.id;
+  if (ev.key === "Enter" || ev.key === " ") {
+    ev.preventDefault();
+    selected = selected === id ? null : id;
+    draw();
+  } else if (ev.key === "Escape" && selected) {
+    ev.preventDefault();
+    selected = null;
+    draw();
+  } else {
+    const next = stepFrom(id, ev.key);
+    if (next) {
+      ev.preventDefault();
+      focusNode(next);
+    }
+  }
+}
+
+function fitMap() {
+  const stage = document.getElementById("stage");
+  if (!stage || !mapLaid.width) return;
+  setMapZoom(Math.min((stage.clientWidth - 16) / mapLaid.width, (stage.clientHeight - 16) / mapLaid.height));
+  stage.scrollTo({ left: 0, top: 0 });
+}
+
 function clampMapZoom(z) {
   return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(z * 100) / 100));
 }
@@ -801,6 +945,8 @@ function bindMapZoom() {
   if (inn) inn.onclick = () => setMapZoom(mapZoom + ZOOM_STEP);
   if (out) out.onclick = () => setMapZoom(mapZoom - ZOOM_STEP);
   if (reset) reset.onclick = () => setMapZoom(1);
+  const fit = document.getElementById("map-zoom-fit");
+  if (fit) fit.onclick = fitMap;
   if (stage) {
     stage.addEventListener("wheel", (ev) => {
       if (!ev.ctrlKey && !ev.metaKey) return;
@@ -846,6 +992,7 @@ function mountTree(data, opts) {
     }
   };
   bindMapZoom();
+  document.getElementById("board").addEventListener("keydown", onBoardKey);
   selected = hashId();
   draw();
   if (selected) requestAnimationFrame(() => requestAnimationFrame(centerSelected));
@@ -915,6 +1062,11 @@ function setLineageOnly(on) {
   draw();
 }
 
+function setHideImplied(on) {
+  hideImplied = !!on;
+  draw();
+}
+
 </script>
 <script>
 (function () {
@@ -944,6 +1096,7 @@ function setLineageOnly(on) {
     }
   });
   document.getElementById("lineage").addEventListener("change", (ev) => setLineageOnly(ev.target.checked));
+  document.getElementById("implied").addEventListener("change", (ev) => setHideImplied(ev.target.checked));
   const key = document.getElementById("map-key");
   const keyBtn = document.getElementById("key-toggle");
   keyBtn.addEventListener("click", () => {
