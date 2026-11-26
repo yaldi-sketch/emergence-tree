@@ -4,6 +4,14 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Emergence tree</title>
+<meta name="description" content="A map of phenomena named in the literature. An edge is physical production, a bound, or a limit." />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Emergence tree" />
+<meta property="og:description" content="A map of phenomena named in the literature. An edge is physical production, a bound, or a limit." />
+<meta property="og:url" content="https://yaldi-sketch.github.io/emergence-tree/emergence-tree.html" />
+<meta property="og:image" content="https://yaldi-sketch.github.io/emergence-tree/logo.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="icon" href="logo.png" />
 <style>
 :root {
   --bg: #1b1b1d; --panel: #222226; --elev: #2a2a2e; --chrome: #252528;
@@ -122,6 +130,8 @@ aside h2 { font-size: 16px; margin: 0 0 6px; font-weight: 590; }
 .parents { margin-top: 12px; font-size: 12.5px; color: var(--muted); }
 .parents b { color: var(--text); font-weight: 590; }
 .src { margin-top: 14px; color: var(--faint); font-size: 12px; }
+aside a { color: var(--muted); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
+aside a:hover, aside a:focus-visible { color: var(--ink); text-decoration-color: var(--focus); }
 .empty { color: var(--muted); font-size: 13px; }
 </style>
 </head>
@@ -256,6 +266,39 @@ function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[c]));
+}
+
+const REF_RE = /\b10\.\d{4,9}\/[^\s;,]+|\barXiv:\s?\d{4}\.\d{4,5}(?:v\d+)?/gi;
+function trimRef(ref) {
+  let r = ref.replace(/[.:]+$/, "");
+  while (r.endsWith(")") && r.split("(").length < r.split(")").length) r = r.slice(0, -1);
+  return r.replace(/[.:]+$/, "");
+}
+function refHref(ref) {
+  if (/^arxiv/i.test(ref)) return "https://arxiv.org/abs/" + ref.replace(/^arxiv:\s?/i, "");
+  return "https://doi.org/" + ref;
+}
+function linkRefs(s) {
+  const text = String(s == null ? "" : s);
+  let out = "", last = 0;
+  for (const m of text.matchAll(REF_RE)) {
+    const ref = trimRef(m[0]);
+    out += esc(text.slice(last, m.index));
+    out += '<a href="' + esc(refHref(ref)) + '" target="_blank" rel="noopener">' + esc(ref) + "</a>";
+    last = m.index + ref.length;
+  }
+  return out + esc(text.slice(last));
+}
+
+function hashId() {
+  let id = "";
+  try { id = decodeURIComponent(location.hash.slice(1)); } catch (_) { return null; }
+  return byAll[id] ? id : null;
+}
+function syncHash() {
+  const want = selected ? "#" + selected : "";
+  if (location.hash === want) return;
+  history.replaceState(null, "", location.pathname + location.search + want);
 }
 
 function importedIds() {
@@ -457,6 +500,7 @@ function sectionCount(s) {
 }
 
 function draw() {
+  syncHash();
   const nodes = visibleNodes();
   const live = new Set(nodes.map((n) => n.id));
   const edges = DATA.edges.filter((e) => live.has(e.from) && live.has(e.to));
@@ -640,20 +684,20 @@ function draw() {
   if (n.evidence) {
     html += '<div class="box ' + (n.evidence.grade === "theory" ? "thy" : "sim") + '"><b>'
       + (n.evidence.grade === "theory" ? "Theory only" : "Simulation only") + ": </b>"
-      + esc(n.evidence.basis) + "</div>";
+      + linkRefs(n.evidence.basis) + "</div>";
   }
-  if (n.open) html += '<div class="box warn">Open in the field: ' + esc(n.open) + "</div>";
-  if (n.probe) html += '<div class="box">Also a probe: ' + esc(n.probe) + ".</div>";
-  html += "<p>" + esc(n.detail) + "</p>";
+  if (n.open) html += '<div class="box warn">Open in the field: ' + linkRefs(n.open) + "</div>";
+  if (n.probe) html += '<div class="box">Also a probe: ' + linkRefs(n.probe) + ".</div>";
+  html += "<p>" + linkRefs(n.detail) + "</p>";
   if (n.frontier) {
     html += '<div class="box front">The diagram stops here. Downstream and not yet drawn: '
-      + esc(n.frontier) + "</div>";
+      + linkRefs(n.frontier) + "</div>";
   }
   for (const [title, rows] of groups) {
     if (!rows.length) continue;
     html += '<div class="parents"><b>' + title + "</b> · " + rows.map((r) => esc(lab(r.from))).join(" · ") + "</div>";
   }
-  if (n.source) html += '<div class="src">' + esc(n.source) + "</div>";
+  if (n.source) html += '<div class="src">' + linkRefs(n.source) + "</div>";
   const marks = instOn.get(n.id) || [];
   if (marks.length) {
     html += '<div class="parents"><b>Instruments</b></div>';
@@ -765,7 +809,14 @@ function mountTree(data, opts) {
     }
   };
   bindMapZoom();
+  selected = hashId();
   draw();
+  if (selected) requestAnimationFrame(() => requestAnimationFrame(centerSelected));
+  window.addEventListener("hashchange", () => {
+    const id = hashId();
+    if (id && id !== selected) treeSelect(id);
+    else if (!id && selected) { selected = null; draw(); }
+  });
 }
 
 function centerSelected() {
