@@ -133,6 +133,31 @@ aside h2 { font-size: 16px; margin: 0 0 6px; font-weight: 590; }
 aside a { color: var(--muted); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
 aside a:hover, aside a:focus-visible { color: var(--ink); text-decoration-color: var(--focus); }
 .empty { color: var(--muted); font-size: 13px; }
+.dock-close { display: none; }
+@media (max-width: 720px) {
+  body { height: 100dvh; }
+  header { position: relative; padding: 8px 10px 6px; }
+  .pin { display: block; margin-top: 2px; }
+  .tools { gap: 6px; margin-top: 6px; }
+  #search { flex: 1 1 140px; width: auto; min-width: 0; }
+  .map-zoom .hint { display: none; }
+  details.map-about { position: static; }
+  .map-about-card { left: 10px; right: 10px; width: auto; top: 100%; }
+  .pills { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .pills::-webkit-scrollbar { display: none; }
+  .pills > * { flex-shrink: 0; }
+  main { flex-direction: column; }
+  aside {
+    width: auto; max-height: 46dvh; border-left: 0; border-top: 1px solid var(--line);
+    padding: 10px 12px; box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.35);
+  }
+  aside:not(.open) { display: none; }
+  .dock-close {
+    display: block; float: right; margin: -2px -4px 4px 8px;
+    background: var(--elev); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 4px; width: 30px; height: 30px; font: inherit; font-size: 18px; line-height: 1; cursor: pointer;
+  }
+}
 </style>
 </head>
 <body>
@@ -662,6 +687,8 @@ function draw() {
 
   const panel = document.getElementById("panel");
   const n = byAll[selected];
+  const dock = document.getElementById("map-dock");
+  if (dock) dock.classList.toggle("open", !!n);
   if (!n) {
     const why = (!nodes.length)
       ? "Nothing on the board. " + filterBits().join(" · ") + "."
@@ -677,7 +704,8 @@ function draw() {
     ["A limit of", inc.filter((e) => e.rel === "limit")],
     ["Feeds back from", inc.filter((e) => e.feedback)],
   ];
-  let html = "<h2>" + esc(n.label) + "</h2>";
+  let html = '<button type="button" class="dock-close" aria-label="Close">×</button>';
+  html += "<h2>" + esc(n.label) + "</h2>";
   html += '<div class="meta">' + (n.sub ? esc(n.sub) + " · " : "") + esc(DIM_LABEL[n.dim] || n.dim)
     + (n.kind === "root" ? " · fundamental" : "")
     + (n.kind === "gate" ? " · dimensional" : "") + "</div>";
@@ -709,6 +737,8 @@ function draw() {
     html += "</div>";
   }
   panel.innerHTML = html;
+  const close = panel.querySelector(".dock-close");
+  if (close) close.onclick = () => { selected = null; draw(); };
   panel.querySelectorAll(".open-tool").forEach((btn) => {
     btn.onclick = () => {
       if (onOpenTools) onOpenTools(btn.getAttribute("data-inst"));
