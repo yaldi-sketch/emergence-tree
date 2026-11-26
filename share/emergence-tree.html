@@ -11,7 +11,7 @@
 <meta property="og:url" content="https://yaldi-sketch.github.io/emergence-tree/emergence-tree.html" />
 <meta property="og:image" content="https://yaldi-sketch.github.io/emergence-tree/logo.png" />
 <meta name="twitter:card" content="summary_large_image" />
-<link rel="icon" href="logo.png" />
+<link rel="icon" href="icon.png" />
 <style>
 :root {
   --bg: #1b1b1d; --panel: #222226; --elev: #2a2a2e; --chrome: #252528;
@@ -697,12 +697,18 @@ function draw() {
     return;
   }
   const inc = DATA.edges.filter((e) => e.to === n.id);
+  const out = DATA.edges.filter((e) => e.from === n.id);
   const lab = (id) => byAll[id]?.label || id;
+  const nodeLink = (id) => '<a href="#' + esc(id) + '">' + esc(lab(id)) + "</a>";
   const groups = [
-    ["Produced by", inc.filter((e) => !e.rel && !e.feedback)],
-    ["A claim about", inc.filter((e) => e.rel === "bounds")],
-    ["A limit of", inc.filter((e) => e.rel === "limit")],
-    ["Feeds back from", inc.filter((e) => e.feedback)],
+    ["Produced by", inc.filter((e) => !e.rel && !e.feedback), "from"],
+    ["A claim about", inc.filter((e) => e.rel === "bounds"), "from"],
+    ["A limit of", inc.filter((e) => e.rel === "limit"), "from"],
+    ["Feeds back from", inc.filter((e) => e.feedback), "from"],
+    ["Produces", out.filter((e) => !e.rel && !e.feedback), "to"],
+    ["Claims about it", out.filter((e) => e.rel === "bounds"), "to"],
+    ["Its limits", out.filter((e) => e.rel === "limit"), "to"],
+    ["Feeds back into", out.filter((e) => e.feedback), "to"],
   ];
   let html = '<button type="button" class="dock-close" aria-label="Close">×</button>';
   html += "<h2>" + esc(n.label) + "</h2>";
@@ -721,9 +727,9 @@ function draw() {
     html += '<div class="box front">The diagram stops here. Downstream and not yet drawn: '
       + linkRefs(n.frontier) + "</div>";
   }
-  for (const [title, rows] of groups) {
+  for (const [title, rows, end] of groups) {
     if (!rows.length) continue;
-    html += '<div class="parents"><b>' + title + "</b> · " + rows.map((r) => esc(lab(r.from))).join(" · ") + "</div>";
+    html += '<div class="parents"><b>' + title + "</b> · " + rows.map((r) => nodeLink(r[end])).join(" · ") + "</div>";
   }
   if (n.source) html += '<div class="src">' + linkRefs(n.source) + "</div>";
   const marks = instOn.get(n.id) || [];
