@@ -707,7 +707,7 @@ function draw() {
     ["A limit of", inc.filter((e) => e.rel === "limit"), "from"],
     ["Feeds back from", inc.filter((e) => e.feedback), "from"],
     ["Produces", out.filter((e) => !e.rel && !e.feedback), "to"],
-    ["Claims about it", out.filter((e) => e.rel === "bounds"), "to"],
+    ["Bounds", out.filter((e) => e.rel === "bounds"), "to"],
     ["Its limits", out.filter((e) => e.rel === "limit"), "to"],
     ["Feeds back into", out.filter((e) => e.feedback), "to"],
   ];
